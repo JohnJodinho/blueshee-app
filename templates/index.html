@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlueSheet Generation Tool</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            background-color: #333;
+            color: #ddd;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Top bar */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #444;
+            padding: 10px 20px;
+            position: relative;
+        }
+
+        .top-bar .new-chat-btn {
+            background-color: #555;
+            border: none;
+            color: #ddd;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        .top-bar .title {
+            font-size: 1.5em;
+            color: #ddd;
+        }
+
+        /* Chat area */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        .message {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .message.user-message {
+            justify-content: flex-end;
+        }
+
+        .message .icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+
+        .message .text {
+            background-color: #555;
+            padding: 10px 15px;
+            border-radius: 8px;
+            max-width: 60%;
+            color: #ddd;
+        }
+
+        .message.user-message .text {
+            background-color: #444;
+        }
+
+        .copy-btn {
+            margin-left: 5px;
+            cursor: pointer;
+            color: #ddd;
+        }
+
+        .copy-btn:hover {
+            color: #aaa;
+        }
+
+        /* Input area */
+        .input-container {
+            display: flex;
+            align-items: center;
+            background-color: #444;
+            padding: 10px 20px;
+            position: relative;
+        }
+
+        .input-container input {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            outline: none;
+            background-color: #555;
+            color: #ddd;
+            margin-right: 10px;
+        }
+
+        .input-container .send-btn, .input-container .attach-btn {
+            cursor: pointer;
+            color: #ddd;
+            background-color: transparent;
+            border: none;
+        }
+
+        .input-container .send-btn:hover, .input-container .attach-btn:hover {
+            color: #aaa;
+        }
+
+        /* Generating response animation */
+        @keyframes loading {
+            0% { content: "."; }
+            25% { content: ".."; }
+            50% { content: "..."; }
+            75% { content: "...."; }
+            100% { content: "....."; }
+        }
+
+        .generating-response::after {
+            content: ".";
+            animation: loading 1s infinite;
+        }
+
+        /* Tooltip styling */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: #444;
+            color: #fff;
+            text-align: center;
+            padding: 5px;
+            border-radius: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%; /* Position above */
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="tooltip">
+            <button class="new-chat-btn"><i class="fas fa-plus"></i></button>
+            <span class="tooltiptext">New Chat</span>
+        </div>
+        <div class="title">BlueSheet Generation Tool</div>
+    </div>
+
+    <!-- Chat Container -->
+    <div class="chat-container" id="chatContainer">
+        <!-- Chat messages will be appended here -->
+    </div>
+
+    <!-- Input Container -->
+    <div class="input-container">
+        <div class="tooltip">
+            <button class="attach-btn" id="attachBtn"><i class="fas fa-paperclip"></i></button>
+            <span class="tooltiptext">Attach File</span>
+        </div>
+        <input type="text" id="userInput" placeholder="Type a message...">
+        <div class="tooltip">
+            <button class="send-btn" id="sendBtn">Send Message</button>
+            <span class="tooltiptext">Send Message</span>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" style="display: none;">
+        <div style="padding: 20px; background-color: #333; border-radius: 8px; color: #ddd;">
+            <p>Upload document from computer</p>
+            <input type="file" id="fileInput" style="color: #ddd;">
+            <button onclick="closeModal()" style="margin-top: 10px; padding: 8px; cursor: pointer;">Close</button>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // Send message function
+            function sendMessage() {
+                const userInput = $('#userInput').val().trim();
+                if (userInput) {
+                    appendUserMessage(userInput);
+                    $('#userInput').val('');
+                    generateResponse();
+                }
+            }
+
+            // Send message on button click
+            $('#sendBtn').click(sendMessage);
+
+            // Send message on Enter key press
+            $('#userInput').keypress(function(e) {
+                if (e.which == 13) {
+                    sendMessage();
+                }
+            });
+
+            // Attach file button click
+            $('#attachBtn').click(function() {
+                $('#uploadModal').show();
+            });
+
+            // Close modal
+            window.closeModal = function() {
+                $('#uploadModal').hide();
+            }
+
+            // Append user message
+            function appendUserMessage(message) {
+                $('#chatContainer').append(
+                    `<div class="message user-message">
+                        <div class="text">${message}</div>
+                    </div>`
+                );
+                $('#chatContainer').scrollTop($('#chatContainer')[0].scrollHeight);
+            }
+
+            // Generate response
+            function generateResponse() {
+                $('#chatContainer').append(
+                    `<div class="message">
+                        
+                        <div class="text generating-response"><div class="icon">🐋</div>Generating response</div>
+                    </div>`
+                );
+                $('#chatContainer').scrollTop($('#chatContainer')[0].scrollHeight);
+
+                // Simulate delay for generating response
+                setTimeout(() => {
+                    $('.generating-response').remove();
+                    appendModelResponse("Error generating response...");
+                }, 2000);
+            }
+
+            // Append model response
+            function appendModelResponse(response) {
+                $('#chatContainer').append(
+                    `<div class="message">
+                        <div class="icon">🐋</div>
+                        <div class="text">${response}</div>
+                        <button class="copy-btn" onclick="copyToClipboard('${response}')"><i class="fas fa-copy"></i></button>
+                    </div>`
+                );
+                $('#chatContainer').scrollTop($('#chatContainer')[0].scrollHeight);
+            }
+
+            // Copy to clipboard function
+            window.copyToClipboard = function(text) {
+                navigator.clipboard.writeText(text);
+                alert("Copied to clipboard!");
+            }
+        });
+    </script>
+</body>
+</html>
